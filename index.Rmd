@@ -416,8 +416,6 @@ mtext(text = "Map data © OpenStreetMap contributors, under CC BY SA.",
 
 # Exemples
 
-Les données mobilisées dans ce tutoriel se trouvent ici: 
-
 Sources : GEOFLA® 2.1 pour `com` et `dep`, Natural Earth 3.1.0 pour `espagne` et Insee 2012 pour `csp`.
 
 ## Carte de la région Occitanie
@@ -445,7 +443,6 @@ library(cartography)
 ## Carte de la région
 ## Languedoc-Roussillon-Midi-Pyrénnée
 load(url("https://github.com/rCarto/ifsttar/raw/master/data/Occitanie.RData"))
-
 # Affichage de chacun des objets spatiaux
 plot(com)
 plot(dep)
