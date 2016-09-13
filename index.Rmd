@@ -1,0 +1,726 @@
+---
+title: "Cartographie thématique avec R"
+date: "Analyse et représentation géographique<br>des données environnementales<br>15 septembre 2016<br>IFSTTAR/AME <br>Nantes"
+author: "Timothée Giraud (CNRS - UMS RIATE)" 
+output:
+    rmdformats::readthedown:
+        highlight: kate
+        lightbox: false
+        thumbnails: false
+        gallery: false
+        self_contained: no
+
+---
+
+```{r knitr_init, echo=FALSE, cache=FALSE}
+library(knitr)
+library(rmdformats)
+## Global options
+options(max.print="75")
+opts_chunk$set(echo=TRUE,
+               cache=TRUE,
+               prompt=FALSE,
+               tidy=TRUE,
+               tidy.opts=list(width.cutoff=50),
+               comment=NA,
+               message=FALSE,
+               warning=FALSE, 
+               fig.width=7)
+opts_knit$set(width=75)
+
+knit_hooks$set(par = function(before, options, envir){
+  if (before){
+    par(mar=c(0,0,0,0))
+  } 
+})
+
+knit_hooks$set(par.title = function(before, options, envir){
+  if (before){
+    par(mar=c(0,0,1.2,0))
+  } 
+})
+
+```
+
+# R
+
+- R est un langage et un environnement permettant de réaliser une variété de traitements statistiques et de représentations graphiques.  
+
+- R est un logiciel libre sous license GNU General Public License.  
+
+- R est multiplateforme (GNU/Linux, Windows, OS X...).
+
+```{r, out.width = 200, fig.retina = NULL, echo=FALSE}
+knitr::include_graphics("img/Rlogo.png")
+```
+
+## Environment 
+
+- R Base : [R](https://www.r-project.org/)
+
+- Les packages : [The Comprehensive R Archive Network](http://cran.cc.uoc.gr/mirrors/CRAN/) (CRAN)
+
+- Environnement de développement intégré (IDE) : [RStudio](https://www.rstudio.com/)   
+[RStudio : sa vie, son oeuvre, ses ressources](https://elementr.hypotheses.org/237)
+
+
+## Popularité et vitalité
+
+- Plus de 151 941 questions taggées R sur [StackOverflow](https://stackoverflow.com/questions/tagged/r)
+
+- Plus de 9 144 [packages](https://cran.r-project.org/)
+
+- Langage préféré des *data scientists* ([LinkedIn](http://blog.revolutionanalytics.com/2015/11/new-surveys-show-continued-popularity-of-r.html))
+
+- Dépots les plus forkés sur [GitHub](http://githut.info/)
+
+- 5 *updates* in 2015
+
+- 238 [Local R User Groups](http://blog.revolutionanalytics.com/local-r-groups.html), dont 8 en France
+
+
+# Les fonctionnalités spatiales de R
+Trois packages sont incontournables.
+
+## `rgdal`: import/export d'objets spatiaux et gestion des projections cartographiques
+
+`rgdal` est une interface entre R et les librairies GDAL ([Geospatial Data Abstraction Library](http://www.gdal.org/)) et [PROJ4](https://github.com/OSGeo/proj.4).
+
+```{r, out.width = 800, fig.retina = NULL, echo=FALSE}
+knitr::include_graphics("img/qgis.png")
+```
+
+```{r ImportShp, cache = T}
+library("rgdal")
+nuts3 <- readOGR(dsn = "data", layer = "nuts3", 
+                 verbose = TRUE)
+```
+
+## `sp`: manipulation et affichage d'objets spatiaux
+
+`sp` fournit des classes et des methodes pour les données spatiales dans R.
+
+#### Affichage des NUTS3 :
+```{r InspectSPDF, par = TRUE, cache = T}
+library("sp")
+class(nuts3)
+nuts3@proj4string
+nuts3@bbox
+head(nuts3@data)
+plot(nuts3)
+plot(nuts3, col = "#DAE3E6", border = "#8A0641", lwd = 0.5)
+```
+
+
+## `rgeos`: géotraitements
+
+`rgeos` donne accès à la librairie d'opérations spatiales GEOS ([Geometry Engine - Open Source](http://trac.osgeo.org/geos/)) qui permet notamment d'effectuer les géotraitements suivants :  
+
+* Area / Perimeter 
+* Distances  
+* **Buffer**
+* Overlap / intersect / difference
+* Contains / within
+* Union
+* **Dissolve**
+* ...
+
+#### Agrégation des polygones / dissolve
+
+```{r predissolve, echo = FALSE, cache = TRUE }
+library("rgeos")
+nuts3 <- gBuffer(nuts3, byid = T, width = 1)
+```
+
+```{r dissolve, par = TRUE, cache = TRUE }
+library("rgeos")
+europe <- gUnaryUnion(spgeom = nuts3)
+plot(nuts3, lwd = 0.5)
+plot(europe, lwd = 2, border = "red", add=T)
+```
+
+#### Création de zones tampons / buffer
+```{r buffer, par = TRUE, cache = TRUE}
+library("rgeos")
+europeBuffer <- gBuffer(spgeom = europe, width = 50000)
+plot(europe, col = "#92C5D6")
+plot(europeBuffer, add = T, border = "red")
+```
+
+# Cartographie
+
+## Le package `cartography`
+
+Le package [`cartography`](https://cran.r-project.org/web/packages/cartography/index.html)  est dédié à la **cartographie thématique**.
+
+
+### Installation 
+La version stable est [sur le CRAN](https://cran.r-project.org/web/packages/cartography/index.html).
+
+```{r install, eval = FALSE, cache = TRUE}
+install.packages("cartography")
+```
+
+La version de développement est hébergée sur [GitHub](https://github.com/Groupe-ElementR/cartography).   
+```{r install2, eval = FALSE, cache = TRUE}
+require(devtools)
+devtools::install_github("Groupe-ElementR/cartography")
+```
+
+Vous pouvez nous faire remonter d’éventuels bugs [ici](https://github.com/Groupe-ElementR/cartography/issues/).
+
+
+## Les données 
+Des données sont fournies avec le package, elles portent sur les maillages régionaux européens [NUTS](http://ec.europa.eu/eurostat/fr/web/nuts/overview). 
+```{r cleaning, eval=TRUE, echo=FALSE, cache = FALSE}
+rm(list = ls())
+```
+
+```{r load, par.title = TRUE, cache = FALSE}
+# Chargement de la librairie
+library(cartography)
+
+# Import de données dans la session
+data(nuts2006)
+```
+
+
+
+## Carte Choroplethes
+
+```{r choroMap, par.title = TRUE, cache = TRUE}
+# Calcul du taux de croissance annuel moyen
+nuts2.df$cagr <- 100 * (((nuts2.df$pop2008 / nuts2.df$pop1999)^(1/9)) - 1) 
+
+# Cartographie
+choroLayer(spdf = nuts2.spdf, df = nuts2.df, var = "cagr")
+title("Taux de croissance en Europe")
+```
+
+
+Après ce premier jet, il est ensuite possible de paramétrer très finement la carte : palette de couleurs, discrétisation, légende, couches d'habillage...
+
+```{r choroMap2, par.title = TRUE, cache = TRUE}
+# Construire une palette de couleurs
+cols <- carto.pal(pal1 = "green.pal", n1 = 2, 
+                  pal2 = "red.pal", n2 = 4) 
+
+# Affichage de couches d'habillage
+plot(nuts0.spdf, border = NA, col = NA, bg = "#A6CAE0")
+plot(world.spdf, col  = "#E3DEBF", border=NA, add=TRUE)
+
+# Cartographie du taux de croissance annuel moyen
+choroLayer(spdf = nuts2.spdf, df = nuts2.df, var = "cagr",
+           breaks = c(-2.43,-1.0,0.0,0.5,1.0,2.0,3.1), 
+           col = cols,
+           border = "grey40",
+           lwd = 0.5, 
+           legend.pos = "right",
+           legend.title.txt = "taux de croissance\nannuel moyen", 
+           legend.values.rnd = 2, 
+           add = TRUE) 
+
+# Affichage de couches d'habillage
+plot(nuts0.spdf,border = "grey20", lwd=0.75, add=TRUE)
+
+# Ajout des titres, légende, sources, etc.
+layoutLayer(title = "Taux de croissance en Europe", 
+            author = "cartography", 
+            sources = "Eurostat, 2008", frame = TRUE, col = NA, 
+            scale = NULL,coltitle = "black",
+            south = TRUE) 
+
+```
+
+
+
+## Cartes en symboles proportionnels
+
+Cartographie d'un stock (la population nationale) avec des figurés proportionnels.
+
+```{r propMap, par.title = TRUE, cache = TRUE, fig.width=6}
+
+# Affichage de couches d'habillage
+plot(nuts0.spdf, border = NA, col = NA, bg = "#A6CAE0")
+plot(world.spdf, col  = "#E3DEBF", border=NA, add=TRUE)
+plot(nuts0.spdf, col = "#D1914D",border = "grey80", add=TRUE)
+
+# Cartographie de la population des pays en cercles proportionnels
+propSymbolsLayer(spdf = nuts0.spdf, df = nuts0.df,
+                 var = "pop2008", 
+                 symbols = "circle", col =  "#920000",
+                 legend.pos = "right",
+                 legend.title.txt = "Total\npopulation (2008)",
+                 legend.style = "c")
+
+# Ajout des titres, légende, sources, etc.
+layoutLayer(title = "Countries Population in Europe",
+            author = "cartography",
+            sources = "Eurostat, 2008",
+            scale = NULL,
+            south = TRUE)
+```
+
+
+
+## Cartes de flux
+
+Il s'agit de représenter des données, agrégées à un niveau régional, sur les jumelages entre villes. 
+```{r linkMap, par.title = TRUE, cache = TRUE}
+# Données sur les jumelages
+head(twincities)
+
+# Creation d'une couche de liens
+twincities.spdf <- getLinkLayer(spdf = nuts2.spdf, df = twincities) 
+
+# Affichage des liens créés
+plot(twincities.spdf, lwd = 0.2)
+
+# Affichage de couches d'habillage
+plot(nuts0.spdf, border = NA, col = NA, bg = "#A6CAE0")
+plot(world.spdf, col  = "#E3DEBF", border=NA, add=TRUE)
+plot(nuts2.spdf, col = "#D1914D",border = "grey80", add=TRUE)
+
+# Cartographie des liens
+gradLinkLayer(spdf = twincities.spdf, df = twincities,   
+              spdfids = "i", spdfide = "j", dfids = "i", dfide = "j", 
+              var = "fij", 
+              breaks = c(2,5,15,20,30), 
+              lwd = c(0.1,1,4,10), 
+              col = "#92000090",
+              legend.pos = "right", legend.frame = TRUE,
+              legend.title.txt = "Number of Agreements\n(regional level)",
+              add = TRUE)
+
+# Ajout des titres, légende, sources, etc.
+layoutLayer(title = "International Twinning Agreements Between Cities", 
+            author = "cartography", 
+            sources = "Sources: Adam Ploszaj & Wikipedia, 2011",
+            scale = NULL, south = TRUE, frame = TRUE, col = NA, 
+            coltitle = "black")
+```
+
+
+## Discontinuités
+
+Discontinuités de richesses entre Etats.
+
+```{r disc, par.title = TRUE, cache = TRUE}
+# Construction les polylignes des frontières inter-étatiques
+nuts0.contig.spdf <- getBorders(nuts0.spdf)
+
+plot(nuts0.spdf, bg = "#A6CAE0", col = "#D1914D",border = "grey80")
+plot(nuts0.contig.spdf, col = 1:nrow(nuts0.contig.spdf), lwd = 2, add=TRUE)
+
+head(nuts0.contig.spdf@data)
+
+# Calcul du PIB/habitant
+nuts0.df$gdpcap <- nuts0.df$gdppps2008/nuts0.df$pop2008*1000000
+
+# Affichage de couches d'habillage
+plot(nuts0.spdf, border = NA, col = NA, bg = "#A6CAE0")
+plot(world.spdf, col  = "#E3DEBF", border=NA, add=TRUE)
+
+# Cartographie du PIB/habitants
+choroLayer(spdf = nuts0.spdf, df = nuts0.df, var = "gdpcap", 
+           border = "grey80",
+           col = carto.pal(pal1 = "kaki.pal", n1 = 6), 
+           method = "quantile",
+           nclass = 6, add=TRUE, 
+           legend.pos = "right", 
+           legend.values.rnd = -2,
+           legend.title.txt = "GDP per Capita\n(in euros)")
+
+# Plot discontinuities
+discLayer(spdf = nuts0.contig.spdf, df = nuts0.df, var = "gdpcap", 
+          type = "rel", 
+          method = "equal", 
+          nclass = 4, 
+          threshold = 0.5, 
+          sizemin = 0.5, 
+          sizemax = 6, 
+          col="red",
+          legend.values.rnd = 1,
+          legend.title.txt = "Discontinuities in \nGDP per Capita\n(relative)",
+          legend.pos = "topright", 
+          add=TRUE)
+
+# Ajout des titres, légende, sources, etc.
+layoutLayer(title = "Wealth Disparities in Europe",
+            coltitle = "black", col = NA,
+            sources = "Eurostat, 2011", 
+            scale = NULL,
+            author = "cartography", 
+            frame = FALSE)
+
+```
+
+
+## Carroyages
+
+Transformation de données dans un maillage hétérogène vers une grille régulière. 
+
+```{r grid, par.title = TRUE, cache = TRUE}
+# Creation d'une grille régulière
+mygrid <- getGridLayer(spdf=nuts2.spdf, cellsize = 200000)
+
+# Affichage de la grille
+plot(mygrid$spdf)
+
+# Adaptation des données à la grille
+datagrid.df <- getGridData(x = mygrid, df = nuts2.df, var = "pop2008") 
+datagrid.df$densitykm <- datagrid.df$pop2008_density*1000*1000
+
+# Affichage de couches d'habillage
+plot(nuts0.spdf, border = NA, col = NA, bg = "#A6CAE0")
+plot(world.spdf, col  = "#E3DEBF", border=NA, add=TRUE)
+
+# Cartographie de la densité de population 
+choroLayer(spdf = mygrid$spdf,                         
+           df = datagrid.df,
+           var = "densitykm", 
+           border = "grey80", 
+           col = carto.pal(pal1 = "wine.pal", n1 = 6), 
+           legend.pos = "topright",
+           method = "q6", add = TRUE,
+           legend.title.txt = "Population Density\n(inhabitant/km²)")
+
+# Ajout des titres, légende, sources, etc.
+layoutLayer(title = "Population Density", 
+            coltitle = "black", col = NA,
+            sources = "Eurostat, 2011", scale = NULL, 
+            author = "cartography", frame = FALSE)
+```
+
+## Fonds de carte OpenStreetMap
+
+Import de tuiles issues d'OpenStreetMap
+
+```{r osm, par = TRUE, cache = TRUE, fig.width=5, fig.height=5}
+data("nuts2006")
+# extract Denmark
+spdf <- nuts0.spdf[nuts0.spdf$id=="DK",]   
+# Download the tiles, extent = Denmark 
+den <- getTiles(spdf = spdf, type = "osmtransport", crop = TRUE, zoom = 7)
+
+# Plot the tiles
+tilesLayer(den)
+# Plot countries
+plot(spdf, border = "red", lwd = 2, add=TRUE)
+# Map tiles sources
+mtext(text = "Map data © OpenStreetMap contributors, under CC BY SA.",
+      side = 1, adj = 0, cex = 0.7, font = 3, line = -2)
+
+```
+
+
+# Exemples
+
+Les données mobilisées dans ce tutoriel se trouvent ici: 
+
+Sources : GEOFLA® 2.1 pour `com` et `dep`, Natural Earth 3.1.0 pour `espagne` et Insee 2012 pour `csp`.
+
+## Carte de la région Occitanie
+
+Sur cette carte doivent figurer :  
+
+- les communes, 
+- les limites des départements de la région, 
+- un titre,  
+- une échelle, 
+- les sources et l'auteur
+- une flèche d'orientation.
+
+Pour réaliser cette carte, il faudra :
+
+- afficher les communes, 
+- créer un SpatialPolygonsDataFrame des départements de la région, 
+- afficher les départements au dessus des communes, 
+- ajouter les éléments d’habillage. 
+
+
+```{r ex1brut, par = TRUE, cache = TRUE, fig.width=7, fig.height=6, echo = TRUE}
+library(sp)
+library(cartography)
+## Carte de la région
+## Languedoc-Roussillon-Midi-Pyrénnée
+load(url("https://github.com/rCarto/ifsttar/raw/master/data/Occitanie.RData"))
+
+# Affichage de chacun des objets spatiaux
+plot(com)
+plot(dep)
+plot(espagne)
+# Les données attributaires des objets spatiaux
+head(com@data)
+head(dep@data)
+head(espagne@data)
+# Création d'un SpatialPolygonsDataFrame des
+# départements de la région
+dep76 <- dep[dep$CODE_REG == 76, ]
+
+# Gestion des marges de la carte
+par(mar = c(0, 0, 1.2, 0))
+
+# Affichage de l'Espagne, en centrant la carte sur
+# les communes de la région
+plot(espagne, col = "#FAEBD6", border = NA, bg = "#B5D0D0", 
+    xlim = bbox(com)[1, ], ylim = bbox(com)[2, ])
+
+# Ajout des départements
+plot(dep, add = T, col = "#F1EEE8", border = NA)
+
+# Ajout des communes
+plot(com, lwd = 0.5, col = "#f5f5f3ff", border = "#a9b3b4ff", 
+    add = T)
+
+# Ajout des départements de la région
+plot(dep76, lwd = 1.5, col = NA, border = "#8A5543", 
+    add = TRUE)
+
+# Ajout de l'habillage
+layoutLayer(title = "Languedoc-Roussillon-Midi-Pyrénnées", 
+    sources = "GEOFLA® 2.1 - Natural Earth 3.1.0", 
+    author = "T. Giraud, 2016", scale = 50, south = TRUE, 
+    frame = FALSE, col = "#cdd2d4", coltitle = "#8A5543")
+
+# Ajout de points sur les préfectures de
+# département
+points(coordinates(com[com$STATUT == "Prfecture de dpartement", 
+    ]), pch = 16, cex = 0.9, col = "grey50")
+
+# Ajout des noms des préfectures
+labelLayer(com, com@data[com$STATUT == "Prfecture de dpartement", 
+    ], txt = "NOM_COM", pos = 3, offset = 0.25, cex = 0.6, 
+    font = 3)
+
+# Ajout d'un carré sur la préfecture de région
+points(coordinates(com[com$STATUT == "Prfecture de rgion", 
+    ]), pch = 15, cex = 1.1, col = "grey40")
+
+# Ajout du nom de la pref
+labelLayer(com, com@data[com$STATUT == "Prfecture de rgion", 
+    ], txt = "NOM_COM", pos = 3, offset = 0.25, cex = 0.8, 
+    font = 4)
+```
+
+
+## Carte de la répartition de la population
+
+Comment représenter la population communale (implantation, variable visuelle) ?
+La variable population se trouve dans la table attributaire, le data.frame, du SpatialPolygonsDataFrame `com`.
+
+```{r ex2, par = TRUE, cache = TRUE, fig.width=7, fig.height=6, echo = TRUE}
+# Marges
+par(mar = c(0, 0, 1.2, 0))
+# Affichage de l'Espagne
+plot(espagne, col = "#FAEBD6", border = NA, bg = "#B5D0D0", 
+    xlim = bbox(com)[1, ], ylim = bbox(com)[2, ])
+# Ajout des départements
+plot(dep, add = T, col = "#F1EEE8", border = NA)
+# Ajout des département de la région
+plot(dep76, lwd = 1.5, col = "#f5f5f3ff", border = "#8A5543", 
+    add = T)
+# Ajout des cercles proportionnels
+propSymbolsLayer(spdf = com, df = com@data, spdfid = "INSEE_COM", 
+    dfid = "INSEE_COM", col = "#BF2A3B", var = "POPULATION", 
+    border = "grey90", lwd = 0.5, inches = 0.3, legend.pos = "topleft", 
+    legend.style = "c", legend.title.txt = "Nombre d'habitants\nen 2012")
+# Habillage
+layoutLayer(title = "Répartition de la population", 
+    sources = "GEOFLA® 2.1 - Natural Earth 3.1.0", 
+    author = "T. Giraud, 2016", scale = 50, south = TRUE, 
+    frame = FALSE, col = "#cdd2d4", coltitle = "#8A5543")
+```
+
+## Carte de la densité de population
+
+Comment représenter la densité de population communale (implantation, variable visuelle) ?
+Il faudra d’abord créer une variable de densité de population (la variable SUPERFICIE est en hectares…).
+
+Ajouter les labels des 10 communes les plus peuplées.
+
+```{r ex3, par = TRUE, cache = TRUE, fig.width=7, fig.height=6, echo = TRUE}
+# Création de la variable de densité de population
+com$dens <- 100 * com$POPULATION/com$SUPERFICIE
+
+# Marges
+par(mar = c(0, 0, 1.2, 0))
+
+# Affichage de l'Expagne
+plot(espagne, col = "#FAEBD6", border = NA, bg = "#B5D0D0", 
+    xlim = bbox(com)[1, ], ylim = bbox(com)[2, ])
+
+# Affichage des départements
+plot(dep, add = T, col = "#F1EEE8", border = NA)
+
+# Carte choroplethe
+choroLayer(spdf = com, df = com@data, spdfid = "INSEE_COM", 
+    dfid = "INSEE_COM", var = "dens", border = NA, 
+    col = carto.pal("wine.pal", 6), legend.pos = "topleft", 
+    add = TRUE, method = "geom", nclass = 6, legend.title.txt = "Densité de population\n(habitants/km²)")
+
+# Ajout des départemets de la région
+plot(dep76, lwd = 1.5, col = NA, border = "#8A5543", 
+    add = TRUE)
+
+# Ajout des labels du top 10 des communes les plus
+# peuplées extrait de la couche com :
+top10 <- com[order(com$POPULATION, decreasing = T), 
+    ][1:10, ]
+
+# ajout de points
+points(coordinates(top10), pch = 20, cex = 0.5)
+
+# puis de label
+labelLayer(top10, top10@data, spdfid = "INSEE_COM", 
+    dfid = "INSEE_COM", txt = "NOM_COM", cex = c(0.9, 
+        0.7, rep(0.5, 8)), pos = 2, font = 4, offset = 0.2)
+
+# Habillage
+layoutLayer(title = "Densité de population", source = "GEOFLA® 2.1 - Natural Earth 3.1.0", 
+    author = "TG, 2016", scale = 50, south = TRUE, 
+    frame = FALSE, col = "#cdd2d4", coltitle = "#8A5543")
+```
+
+
+## Carte de la répartition et de la densité de population
+
+Comment représenter la répartition et la densité de population communale dans le Lot (Code départemental : 46) ?  
+
+```{r ex4, par = TRUE, cache = TRUE, fig.width=7, fig.height=6, echo = TRUE}
+# Extraction des communes du département
+com46 <- com[com$CODE_DEPT == 46, ]
+
+# Marges
+par(mar = c(0, 0, 1.2, 0))
+
+# Obtention des tuiles OpensStreetMap
+osm46 <- getTiles(spdf = com46, type = "osmtransport", 
+    crop = TRUE)
+
+# plot vide centré sur les communes
+plot(com46, col = NA, border = NA)
+
+# Affichage des tuiles
+tilesLayer(osm46, add = TRUE)
+
+# Ajout des communes
+plot(com46, lwd = 0.5, col = NA, border = "grey50", 
+    add = T)
+
+# Ajout des symboles colorés
+propSymbolsChoroLayer(spdf = com46, df = com46@data, 
+    spdfid = "INSEE_COM", dfid = "INSEE_COM", var = "POPULATION", 
+    var2 = "dens", method = "geom", nclass = 6, border = "white", 
+    lwd = 0.5, col = carto.pal("wine.pal", 9)[4:9], 
+    legend.var.pos = "topleft", legend.var.title.txt = "Nb. d'habitants", 
+    legend.var2.pos = "left", legend.var2.title.txt = "Densité de population\n(habitants/km²)", 
+    legend.var2.values.rnd = 0)
+
+# Habillage
+layoutLayer(title = "Répartition et densité de population dans le Lot", 
+    source = "GEOFLA® 2.1 - Natural Earth 3.1.0 - OpenStreetMap et ses contributeurs", 
+    author = "T. Giraud, 2016", scale = 10, south = TRUE, 
+    frame = FALSE, col = "#cdd2d4", coltitle = "#8A5543")
+
+```
+
+
+
+## Carte de la répartition et de la part des ouvriers dans la population active occupée
+
+Vous trouverez les données sur les CSP dans le data.frame `csp`.
+
+```{r ex454, par = TRUE, cache = TRUE, fig.width=7, fig.height=6, echo = TRUE}
+# Création d'une variable de la part des ouvriers
+# dans le data.frame csp
+csp$OUVPCT <- 100 * csp$OUV/csp$TOT
+
+# Marges
+par(mar = c(0, 0, 1.2, 0))
+
+# Affichage des départements Français
+plot(dep, col = "#FAEBD6", border = "grey80", lwd = 2, 
+    xlim = bbox(com46)[1, ], ylim = bbox(com46)[2, 
+        ])
+
+# Affichage des départements
+plot(com46, col = "#F1EEE8", border = "#8A5543", lwd = 0.5, 
+    add = TRUE)
+
+# Carte choroplethe
+propSymbolsChoroLayer(spdf = com46, df = csp[], spdfid = "INSEE_COM", 
+    dfid = "CODGEO", var = "OUV", var2 = "OUVPCT", 
+    method = "q6", nclass = 6, border = "white", lwd = 0.5, 
+    col = carto.pal("green.pal", 6), legend.var.pos = "topleft", 
+    legend.var.title.txt = "Nb. d'ouvriers", legend.var2.pos = "left", 
+    legend.var2.title.txt = "Part des ouvriers\ndans la population\nactive occupée\n(en %)", 
+    legend.var2.values.rnd = 0)
+
+
+# Ajout de l'habillage
+layoutLayer(title = "Répartition des ouvriers dans le Lot", 
+    sources = "GEOFLA® 2.1 - INSEE 2012", author = "T. Giraud, 2016", 
+    scale = 10, south = TRUE, frame = FALSE, col = "#cdd2d4", 
+    coltitle = "black")
+
+```
+
+
+
+## Créer une carte interactive avec le package leaflet
+
+Créer un carte interactive des communes lotoises. Le clic sur une commune doit afficher son nom, sa population et sa superficie.
+
+```{r ex45s4, par = TRUE, cache = TRUE, fig.width=7, fig.height=6, echo = TRUE}
+library(leaflet)
+# leaflet ne permet qu'une seule projection (web
+# mercator)
+com46p <- spTransform(com46, "+init=epsg:4326")
+# Créer des textes pour les pop-ups
+com46p$label <- paste0("<b>", com46p$NOM_COM, "</b><br>", 
+    "Population : ", com46p$POPULATION, " habitants<br>", 
+    "Superficie : ", round(com46p$SUPERFICIE/100, 1), 
+    " km2")
+# Initialiser la carte
+m <- leaflet()
+# Ajouter des tuiles
+m <- addTiles(map = m, attribution = "OSM et contributeurs")
+# Ajouter une couche de gones clickable
+m <- addPolygons(map = m, data = com46p, opacity = 3, 
+    color = "black", stroke = TRUE, weight = 1, popup = com46p$label, 
+    fill = T, fillColor = "red", fillOpacity = 0.2)
+
+m
+```
+
+
+# References
+
+Roger Bivand and Colin Rundel (2016). rgeos: Interface to Geometry Engine - Open Source (GEOS). R package version 0.3-19. https://CRAN.R-project.org/package=rgeos
+
+Roger Bivand, Tim Keitt and Barry Rowlingson (2016). rgdal: Bindings for the Geospatial Data Abstraction Library. R package version 1.1-10. https://CRAN.R-project.org/package=rgdal
+
+Joe Cheng and Yihui Xie (2016). leaflet: Create Interactive Web Maps with the JavaScript ‘Leaflet’ Library. R package version 1.0.1. https://CRAN.R-project.org/package=leaflet
+
+Giraud, T. and Lambert, N. (2016). cartography: Create and Integrate
+  Maps in your R Workflow. JOSS, 1(4). doi: 10.21105/joss.00054. https://CRAN.R-project.org/package=cartography
+
+Roger S. Bivand, Edzer Pebesma, Virgilio Gomez-Rubio, 2013. Applied spatial data analysis with R, Second edition. Springer, NY. http://www.asdar-book.org/
+
+Pebesma, E.J., R.S. Bivand, 2005. Classes and methods for spatial data in R. R News 5 (2), http://cran.r-project.org/doc/Rnews/.
+
+
+__________________________
+
+Présentation réalisée avec le package [rmdformats](https://github.com/juba/rmdformats).
+
+[Github](https://github.com/Groupe-ElementR/cartography) du package `cartography`
+
+[http://rgeomatic.hypotheses.org/](http://rgeomatic.hypotheses.org/), carnet de recherche sur R et la geomatique.
+
+
+
+
+
+
