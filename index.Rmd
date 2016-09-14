@@ -42,6 +42,19 @@ knit_hooks$set(par.title = function(before, options, envir){
 
 ```
 
+
+# Pourquoi utiliser R?
+
+> Dans le cadre de la recherche académique et de la cartographie statistique
+
+1. Unifier les chaînes des traitements    
+*Dans environnement unique, combiner la récolte des données, leur mise en forme, les traitements (statistiques spatiales, modélisations, géotraitements...) et la représentation des résultats (cartes, graphiques, tableaux, textes...).*
+
+  
+2. S'inscrire dans une démarche de recherche reproductible    
+*Recherche reproductible = article + code + données*
+
+
 # R
 
 - R est un langage et un environnement permettant de réaliser une variété de traitements statistiques et de représentations graphiques.  
